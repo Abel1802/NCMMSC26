@@ -1,44 +1,45 @@
 # NCMMSC26 Spoken Sarcasm Detection
 
-本目录包含英文 MSTD++ 与中文 MCSD1 的口语讽刺识别实验，覆盖：
+This directory contains spoken sarcasm detection experiments on English MSTD++
+and Chinese MCSD1. It covers:
 
-- MLLM zero-shot 与 SFT；
-- Base/Large 冻结特征提取；
-- T、A、V、T+A、T+V、A+V、T+A+V 七种模态消融；
-- 协同门控分类器训练及三随机种子结果汇总。
+- MLLM zero-shot evaluation and supervised fine-tuning (SFT);
+- frozen Base and Large feature extraction;
+- seven modality settings: T, A, V, T+A, T+V, A+V, and T+A+V;
+- collaborative-gate classifier training and three-seed result aggregation.
 
-## 数据与标签
+## Data and labels
 
-`raw_data` 是指向共享数据目录的符号链接。
+`raw_data` is a symbolic link to the shared dataset directory.
 
-| 数据集 | 语言 | Train | Valid | Test | 原始标签 |
+| Dataset | Language | Train | Valid | Test | Original labels |
 |---|---|---:|---:|---:|---|
-| MSTD++ | 英文 | 841 | 180 | 181 | `1.0/0.0` |
-| MCSD1 | 中文 | 1893 | 406 | 406 | `s/ns` |
+| MSTD++ | English | 841 | 180 | 181 | `1.0/0.0` |
+| MCSD1 | Chinese | 1893 | 406 | 406 | `s/ns` |
 
-统一使用 `1/True = sarcasm`、`0/False = non-sarcasm`。媒体路径为：
+All experiments use `1/True = sarcasm` and `0/False = non-sarcasm`. Media is stored in:
 
-- MSTD++：`raw_data/mstdpp/final_utterance_{audios,videos}/`；
-- MCSD1：`raw_data/MCSD1/{audios,videos}/`。
+- MSTD++: `raw_data/mstdpp/final_utterance_{audios,videos}/`;
+- MCSD1: `raw_data/MCSD1/{audios,videos}/`.
 
-## 目录结构
+## Directory layout
 
 ```text
 NCMMSC26/
 ├── raw_data -> shared dataset directory
-├── src/                         # zero-shot JSONL 生成
-├── ms-swift/                    # zero-shot、SFT、推理及评估
+├── zero_few_shot/                         # zero-shot JSONL generation
+├── ms-swift/                    # zero-shot, SFT, inference, and evaluation
 └── feature_extractors/
-    ├── data_extract/            # Base/Large 特征提取
+    ├── data_extract/            # Base/Large feature extraction
     ├── model/                   # collaborative-gate classifier
-    ├── trainer/                 # 训练与结果统计
+    ├── trainer/                 # training and result aggregation
     ├── features/{mstdpp,mcsd1}/
     └── outputs/{mstdpp,mcsd1}/
 ```
 
-## 模态约束
+## Modality constraints
 
-| 模态 | Transcript | WAV | Video |
+| Modality | Transcript | WAV | Video |
 |---|---:|---:|---:|
 | T | ✓ |  |  |
 | A |  | ✓ |  |
@@ -48,21 +49,23 @@ NCMMSC26/
 | A+V |  | ✓ | ✓ |
 | T+A+V | ✓ | ✓ | ✓ |
 
-视频可能包含音轨。所有 V 相关实验必须设置 `USE_AUDIO_IN_VIDEO=false`；A+V 和
-T+A+V 仅使用独立 WAV 作为音频，避免模态泄漏与重复音频。
+Video files may contain audio tracks. Every V experiment must set
+`USE_AUDIO_IN_VIDEO=false`. A+V and T+A+V use only the separate WAV file as
+audio input, preventing duplicate audio and modality leakage.
 
-## Zero-shot
+## Zero-shot evaluation
 
-从本目录生成七种模态的测试 JSONL：
+Generate test JSONL files for all seven modality settings from this directory:
 
 ```bash
-python src/prepare_mstdpp_zero_shot.py --all-ablation-modalities
-python src/prepare_mstdpp_zero_shot.py --modality 'T+A+V'
-python src/prepare_mcsd1_zero_shot.py
+python zero_few_shot/prepare_mstdpp_zero_shot.py --all-ablation-modalities
+python zero_few_shot/prepare_mstdpp_zero_shot.py --modality 'T+A+V'
+python zero_few_shot/prepare_mcsd1_zero_shot.py
 ```
 
-输出位于 `ms-swift/jsonl_data_test/{mstdpp,mcsd1}/`。Prompt 只提供指定模态，要求模型
-严格输出 `True` 或 `False`。运行 Qwen2.5-Omni 示例：
+Files are written to `ms-swift/jsonl_data_test/{mstdpp,mcsd1}/`. Each prompt
+contains only the selected modalities and requires exactly `True` or `False`.
+Example Qwen2.5-Omni invocation:
 
 ```bash
 cd ms-swift
@@ -72,43 +75,45 @@ RESULT_PATH="$PWD/zero_shot_results/mcsd1/qwen2_5_omni_7b_T_A_V.jsonl" \
 bash run_mstdpp_zero_shot_qwen2_5_omni.sh
 ```
 
-运行脚本使用确定性解码，并关闭 audio output 和 video 内音轨。结果可通过
-`evaluate_zero_shot_results.py` 评估。其他推理与 SFT 入口见 `ms-swift/run_*.sh` 和
-`ms-swift/*.sbatch`。
+The script uses deterministic decoding and disables audio output and the video
+audio track. Evaluate results with `evaluate_zero_shot_results.py`. Other
+inference and SFT entry points are in `ms-swift/run_*.sh` and `ms-swift/*.sbatch`.
 
-## Base/Large 特征
+## Base and Large features
 
-| 模态 | Base | Large | 输出形状 |
+| Modality | Base | Large | Output shape |
 |---|---|---|---|
 | T | BERT | LLaMA 3-8B | `[N,768]` / `[N,4096]` |
 | A | Wav2Vec 2.0 | Qwen2-Audio-7B | `[N,768]` / `[N,4096]` |
 | V | ResNet50 | Qwen2.5-VL-7B | `[N,8,2048]` / `[N,8,3584]` |
 
-每个 NPZ 保存 `keys`、`labels` 和 `features`。音频超过 20 秒时分块处理并对所有有效
-时间步汇总；视频均匀采样 8 帧。详细定义见 `feature_extractors/README.md`。
+Each NPZ archive stores `keys`, `labels`, and `features`. Audio longer than 20
+seconds is divided into chunks and pooled over all valid contextual time steps.
+Video extraction uniformly samples eight frames. See `feature_extractors/README.md`
+for the complete feature definitions.
 
 ```bash
 cd feature_extractors
 python -m pip install -r requirements.txt
 
-# 英文 MSTD++
+# English MSTD++
 python -m data_extract.base  --dataset mstdpp --extractor all --device cuda
 python -m data_extract.large --dataset mstdpp --extractor all --device cuda
 
-# 中文 MCSD1
+# Chinese MCSD1
 python -m data_extract.base  --dataset mcsd1 --extractor all --device cuda
 python -m data_extract.large --dataset mcsd1 --extractor all --device cuda
 ```
 
-中文 Base 文本与音频默认使用 `bert-base-chinese` 和
-`TencentGameMate/chinese-wav2vec2-base`；模型路径均可通过命令行覆盖。
+Chinese Base text and audio default to `bert-base-chinese` and
+`TencentGameMate/chinese-wav2vec2-base`. Every model path can be overridden on
+the command line.
 
-## 分类器训练
+## Classifier training
 
-模型参考 `mlt_sarcasm/src/SVM_DNN/run_dnn.py` 的
-`Speaker_Independent_Triple_Mode_without_Context`，支持单、双、三模态。训练包含
-train-only 标准化、AdamW、warm-up、cosine decay、梯度裁剪、early stopping、验证集
-选模和多随机种子汇总，测试集不参与选模。
+Training includes train-only normalization, AdamW, warm-up, cosine decay,
+gradient clipping, early stopping, validation-based selection, and multi-seed
+aggregation. The test set is never used for model selection.
 
 ```bash
 cd feature_extractors
@@ -118,19 +123,20 @@ python -m trainer.train --dataset mcsd1 --backbone both --modalities all \
   --seeds 42 52 62 --device cuda --amp
 ```
 
-已有目录默认不会覆盖；重新运行需显式传入 `--overwrite`。
+Existing run directories are protected from accidental replacement. Pass
+`--overwrite` explicitly to rerun them.
 
-## 结果汇总
+## Result aggregation
 
 ```bash
 cd feature_extractors
 python -m trainer.summarize_results
 ```
 
-测试集三种子均值见：
+Three-seed test means are available in:
 
-- `feature_extractors/outputs/three_seed_mean_results.md`；
-- `feature_extractors/outputs/mstdpp_three_seed_mean.csv`；
-- `feature_extractors/outputs/mcsd1_three_seed_mean.csv`。
+- `feature_extractors/outputs/three_seed_mean_results.md`;
+- `feature_extractors/outputs/mstdpp_three_seed_mean.csv`;
+- `feature_extractors/outputs/mcsd1_three_seed_mean.csv`.
 
-汇总指标为 ACC、Macro-P、Macro-R 和 Macro-F1；随机种子为 42、52、62。
+Reported metrics are ACC, Macro-P, Macro-R, and Macro-F1 over seeds 42, 52, and 62.
