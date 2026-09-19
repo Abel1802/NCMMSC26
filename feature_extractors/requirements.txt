@@ -1,0 +1,8 @@
+# Install a mutually compatible torch + torchvision build separately.
+transformers
+numpy
+scipy
+soundfile
+decord
+Pillow
+scikit-learn

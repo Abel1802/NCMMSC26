@@ -1,0 +1,7 @@
+__pycache__/
+features/
+outputs/*/
+outputs/**/*.pt
+outputs/**/*.pth
+outputs/**/*.ckpt
+outputs/**/*.npz

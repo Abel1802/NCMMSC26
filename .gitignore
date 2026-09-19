@@ -1,0 +1,34 @@
+# Datasets and machine-specific links
+/raw_data
+
+# Python caches and local environments
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Logs and scheduler output
+*.log
+*.out
+slurm-*.out
+/my_exp.log
+
+# Extracted tensors and training artifacts
+/feature_extractors/features/
+/feature_extractors/outputs/*/
+/feature_extractors/outputs/**/*.pt
+/feature_extractors/outputs/**/*.pth
+/feature_extractors/outputs/**/*.ckpt
+/feature_extractors/outputs/**/*.npz
+
+# Model/checkpoint formats (small source configs remain trackable)
+/ms-swift/sft_outputs/
+*.safetensors
+*.bin
+*.onnx
+
+# Editors and OS files
+.DS_Store
+.idea/
+.vscode/
+/ms-swift/
